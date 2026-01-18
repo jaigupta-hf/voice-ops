@@ -20,7 +20,7 @@ def twilio_events_webhook(request):
     """
     try:
         '''
-        # Validate Twilio webhook signature
+        # Validate Twilio webhook signature here (uncomment, when auth token is ready)
 
         auth_token = os.environ.get('TWILIO_AUTH_TOKEN', '')
         
@@ -37,27 +37,22 @@ def twilio_events_webhook(request):
         else:
             data = dict(request.POST)
         
-        # Log the received event (you can replace this with your own logic)
         print("Received Twilio event:")
         print(json.dumps(data, indent=2))
         
-        # Create event_logs directory if it doesn't exist
+        # for logging (will be removed later) [line 43 - 52]
         event_logs_dir = os.path.join(settings.BASE_DIR, 'event_logs')
         os.makedirs(event_logs_dir, exist_ok=True)
         
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f') ## creating folder
         filename = f'twilio_event_{timestamp}.json'
         filepath = os.path.join(event_logs_dir, filename)
         
-        # Save event to file
         with open(filepath, 'w') as f:
             json.dump(data, f, indent=2)
         
-        print(f"Event saved to: {filepath}")
-        
-        # Process the event here
-        # Add your custom logic to handle different types of Twilio events
+
+        # business login here
         
         return HttpResponse(status=204)
         

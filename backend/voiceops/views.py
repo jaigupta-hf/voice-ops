@@ -52,7 +52,7 @@ def twilio_events_webhook(request):
             json.dump(data, f, indent=2)
         
 
-        # business login here
+        # business logic here
         
         return HttpResponse(status=204)
         

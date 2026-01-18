@@ -9,6 +9,7 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.conf import settings
+from .validators import validate_twilio_webhook
 
 
 @csrf_exempt
@@ -18,6 +19,17 @@ def twilio_events_webhook(request):
     Webhook endpoint for receiving event streams from Twilio.
     """
     try:
+        '''
+        # Validate Twilio webhook signature
+
+        auth_token = os.environ.get('TWILIO_AUTH_TOKEN', '')
+        
+        is_valid, error_response = validate_twilio_webhook(request, auth_token)
+        if not is_valid:
+            return error_response
+
+        '''
+        
         content_type = request.content_type
         
         if 'application/json' in content_type:

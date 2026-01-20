@@ -3,6 +3,7 @@ Views for handling webhook endpoints.
 """
 import json
 import os
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from django.http import JsonResponse, HttpResponse
@@ -10,11 +11,12 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.conf import settings
 from .validators import validate_twilio_webhook
+from .event_handler import process_and_emit_event
 
 
 @csrf_exempt
 @require_http_methods(["POST"])
-def twilio_events_webhook(request):
+async def twilio_events_webhook(request):
     """
     Webhook endpoint for receiving event streams from Twilio.
     """
@@ -52,7 +54,12 @@ def twilio_events_webhook(request):
             json.dump(data, f, indent=2)
         
 
-        # business logic here
+        # Process event(s): Twilio Event Streams sends an array of events
+        if isinstance(data, list):
+            for event in data:
+                await process_and_emit_event(event)
+        else:
+            await process_and_emit_event(data)
         
         return HttpResponse(status=204)
         

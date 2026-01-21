@@ -17,12 +17,13 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from . import views
-from .api_views import RecentCallEventsAPIView, RecentErrorEventsAPIView
+from .api_views import RecentCallEventsAPIView, RecentErrorEventsAPIView, CallDetailEventsAPIView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('webhooks/twilio-events', views.twilio_events_webhook, name='twilio_events_webhook'),
     path('api/call-events/', RecentCallEventsAPIView.as_view(), name='recent-call-events'),
     path('api/error-events/', RecentErrorEventsAPIView.as_view(), name='recent-error-events'),
+    path('api/call-events/<str:call_sid>/', CallDetailEventsAPIView.as_view(), name='call-detail-events'),
     path('api/', include('events.urls')),  # for testing purposes
 ]

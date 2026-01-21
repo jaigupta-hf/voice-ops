@@ -5,7 +5,7 @@ Sends events to frontend via Socket.IO and stores in database.
 import socketio
 from datetime import datetime
 from asgiref.sync import sync_to_async
-from events.models import (
+from voiceops.models import (
     Call, CallInitiatedEvent, CallRingingEvent, 
     CallAnsweredEvent, CallCompletedEvent, ErrorEvent
 )
@@ -70,11 +70,21 @@ def store_event_in_database(event_data):
     Store event in database based on event type.
     """
     try:
-        call = get_or_create_call(event_data)
-        
         event_type_full = event_data.get('type', '')
-        event_type = None
+        event_id = event_data.get('id', '')
         
+        from django.utils.dateparse import parse_datetime
+        timestamp_str = event_data.get('time', '')
+        timestamp = parse_datetime(timestamp_str)
+        
+        is_error = 'error-logs.error.logged' in event_type_full
+        
+        # Get or create call (not for error events)
+        call = None
+        if not is_error:
+            call = get_or_create_call(event_data)
+        
+        event_type = None
         if 'call.initiated' in event_type_full:
             event_type = 'initiated'
         elif 'call.ringing' in event_type_full:
@@ -83,57 +93,86 @@ def store_event_in_database(event_data):
             event_type = 'answered'
         elif 'call.completed' in event_type_full:
             event_type = 'completed'
-        elif 'error' in event_type_full:
+        elif is_error:
             event_type = 'error'
         
+        # Store based on event type
         if event_type == 'initiated':
             CallInitiatedEvent.objects.create(
-                call=call,
-                event_data=event_data
+                event_id=event_id,
+                call_sid=call,
+                timestamp=timestamp,
+                additional_data=event_data
             )
         elif event_type == 'ringing':
             CallRingingEvent.objects.create(
-                call=call,
-                event_data=event_data
+                event_id=event_id,
+                call_sid=call,
+                timestamp=timestamp,
+                additional_data=event_data
             )
-        elif event_type == 'answered' or event_type == 'in-progress':
+        elif event_type == 'answered':
             CallAnsweredEvent.objects.create(
-                call=call,
-                event_data=event_data
+                event_id=event_id,
+                call_sid=call,
+                timestamp=timestamp,
+                additional_data=event_data
             )
         elif event_type == 'completed':
             CallCompletedEvent.objects.create(
-                call=call,
-                event_data=event_data
+                event_id=event_id,
+                call_sid=call,
+                timestamp=timestamp,
+                additional_data=event_data
             )
         elif event_type == 'error':
-            # Extract params for error checking
-            params = {}
-            if 'data' in event_data and 'request' in event_data['data']:
-                params = event_data['data']['request'].get('parameters', {})
-            elif 'request' in event_data:
-                params = event_data['request'].get('parameters', {})
+            data = event_data.get('data', {})
+            error_code = data.get('error_code', '')
+            error_message = data.get('level', '')
+            correlation_sid = data.get('correlation_sid', '')
+            
+            # Get or create call for correlation_sid
+            error_call = None
+            if correlation_sid:
+                try:
+                    error_call = Call.objects.get(call_sid=correlation_sid)
+                    print(f"Found existing call for error event: {correlation_sid}")
+                except Call.DoesNotExist:
+                    # Create a placeholder Call record for non-existent SIDs
+                    error_call = Call.objects.create(
+                        call_sid=correlation_sid,
+                        direction='unknown',
+                        from_number='',
+                        to_number='',
+                        call_status='',
+                        additional_data={'note': 'Created from error event correlation_sid'}
+                    )
+                    print(f"Created placeholder call for error event: {correlation_sid}")
+            else:
+                print(f"No correlation_sid in error event")
             
             ErrorEvent.objects.create(
-                call=call,
-                error_code=params.get('ErrorCode', ''),
-                error_message=params.get('ErrorMessage', ''),
-                event_data=event_data
+                event_id=event_id,
+                resource_sid=error_call,
+                timestamp=timestamp,
+                error_code=error_code,
+                error_message=error_message,
+                additional_data=event_data
             )
         else:
-            # Default: store as completed if we can't determine type
-            print(f"Unknown event type: {event_type}, storing as additional data in Call")
+            print(f"Unknown event type: {event_type_full}, storing only Call record")
         
         return True, call
     except Exception as e:
         print(f"Error storing event in database: {e}")
+        import traceback
+        traceback.print_exc()
         return False, None
 
 
 async def process_and_emit_event(event_data):
     """
     Main function to process event: emit to frontend and store in DB.
-    This ensures low latency by emitting first, then storing.
     """
     try:
         # Check for error event 
@@ -142,12 +181,12 @@ async def process_and_emit_event(event_data):
         if 'error-logs.error.logged' in event_type_full:
             data = event_data.get('data', {})
             error_code = data.get('error_code', '')
-            call_sid = data.get('correlation_sid', '')
+            resource_sid = data.get('correlation_sid', '')
             error_message = data.get('level', 'WARNING')
             
             error_emit_data = {
                 'event_id': event_data.get('id', ''),
-                'call_sid': call_sid,
+                'resource_sid': resource_sid,
                 'timestamp': event_data.get('time') or datetime.now().isoformat(),
                 'error_code': error_code,
                 'error_message': error_message,

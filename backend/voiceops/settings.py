@@ -43,7 +43,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
-    'events',  # Twilio events app
+    'voiceops',  # Main app
+    'events',  # Development app
 ]
 
 MIDDLEWARE = [

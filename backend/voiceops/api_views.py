@@ -33,6 +33,7 @@ class RecentCallEventsAPIView(APIView):
         for event in initiated:
             all_events.append({
                 'event_id': event.event_id,
+                'account_sid': event.call_sid.account_sid,
                 'call_sid': event.call_sid.call_sid,
                 'timestamp': event.timestamp,
                 'direction': event.call_sid.direction,
@@ -45,6 +46,7 @@ class RecentCallEventsAPIView(APIView):
         for event in ringing:
             all_events.append({
                 'event_id': event.event_id,
+                'account_sid': event.call_sid.account_sid,
                 'call_sid': event.call_sid.call_sid,
                 'timestamp': event.timestamp,
                 'direction': event.call_sid.direction,
@@ -57,6 +59,7 @@ class RecentCallEventsAPIView(APIView):
         for event in answered:
             all_events.append({
                 'event_id': event.event_id,
+                'account_sid': event.call_sid.account_sid,
                 'call_sid': event.call_sid.call_sid,
                 'timestamp': event.timestamp,
                 'direction': event.call_sid.direction,
@@ -69,6 +72,7 @@ class RecentCallEventsAPIView(APIView):
         for event in completed:
             all_events.append({
                 'event_id': event.event_id,
+                'account_sid': event.call_sid.account_sid,
                 'call_sid': event.call_sid.call_sid,
                 'timestamp': event.timestamp,
                 'direction': event.call_sid.direction,
@@ -167,6 +171,7 @@ class CallDetailEventsAPIView(APIView):
         all_events.sort(key=lambda x: x['timestamp'])
         
         return Response({
+            'account_sid': call.account_sid,
             'call_sid': call.call_sid,
             'direction': call.direction,
             'from_number': call.from_number,

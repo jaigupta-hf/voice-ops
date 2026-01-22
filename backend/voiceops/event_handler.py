@@ -36,6 +36,7 @@ def get_or_create_call(event_data):
     if not call_sid:
         raise ValueError("Cannot find CallSid in event data")
     
+    account_sid = params.get('AccountSid', '')
     from_number = params.get('From')
     to_number = params.get('To')
     direction = params.get('Direction')
@@ -44,6 +45,7 @@ def get_or_create_call(event_data):
     call, created = Call.objects.get_or_create(
         call_sid=call_sid,
         defaults={
+            'account_sid': account_sid,
             'direction': direction,
             'from_number': from_number,
             'to_number': to_number,
@@ -54,6 +56,8 @@ def get_or_create_call(event_data):
     
     # Update fields if call already exists
     if not created:
+        if account_sid and not call.account_sid:
+            call.account_sid = account_sid
         if from_number and not call.from_number:
             call.from_number = from_number
         if to_number and not call.to_number:
@@ -235,6 +239,7 @@ async def process_and_emit_event(event_data):
                 
                 call_emit_data = {
                     'event_id': event_data.get('id', ''),
+                    'account_sid': params.get('AccountSid', ''),
                     'call_sid': call_sid,
                     'timestamp': event_data.get('time') or datetime.now().isoformat(),
                     'direction': direction,

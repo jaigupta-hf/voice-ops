@@ -9,6 +9,8 @@ from voiceops.models import (
     Call, CallInitiatedEvent, CallRingingEvent, 
     CallAnsweredEvent, CallCompletedEvent, ErrorEvent
 )
+from voiceops.slack_notifier import send_slack_notification
+from voiceops.performance_monitor import performance_monitor
 
 sio = socketio.AsyncServer(
     async_mode='asgi',
@@ -159,6 +161,16 @@ def store_event_in_database(event_data):
                 error_message=error_message,
                 additional_data=event_data
             )
+            
+            # Send Slack notification for error event
+            slack_data = {
+                'event_id': event_id,
+                'error_code': error_code,
+                'error_message': error_message,
+                'resource_sid': correlation_sid or 'N/A',
+                'timestamp': timestamp.isoformat() if timestamp else datetime.now().isoformat()
+            }
+            send_slack_notification(slack_data)
         else:
             print(f"Unknown event type: {event_type_full}, storing only Call record")
         
@@ -173,67 +185,74 @@ def store_event_in_database(event_data):
 async def process_and_emit_event(event_data):
     """
     Main function to process event: emit to frontend and store in DB.
+    Monitors processing time and sends alerts if > 2 seconds during business hours.
     """
+    event_id = event_data.get('id', 'N/A')
+    
+    performance_monitor.record_event(event_id)
+    
     try:
-        # Check for error event 
-        event_type_full = event_data.get('type', '')
-        
-        if 'error-logs.error.logged' in event_type_full:
-            data = event_data.get('data', {})
-            error_code = data.get('error_code', '')
-            resource_sid = data.get('correlation_sid', '')
-            error_message = data.get('level', 'WARNING')
+        # Measure processing time
+        with performance_monitor.measure_processing_time(event_id):
+            # Check for error event 
+            event_type_full = event_data.get('type', '')
             
-            error_emit_data = {
-                'event_id': event_data.get('id', ''),
-                'resource_sid': resource_sid,
-                'timestamp': event_data.get('time') or datetime.now().isoformat(),
-                'error_code': error_code,
-                'error_message': error_message,
-            }
-            await sio.emit('new_error', error_emit_data)
-            print(f"Emitted error event to frontend: {error_code}") ## for testing
-        else:
-            # Handle call event 
-            params = {}
-            if 'data' in event_data and 'request' in event_data['data']:
-                params = event_data['data']['request'].get('parameters', {})
-            elif 'request' in event_data:
-                params = event_data['request'].get('parameters', {})
+            if 'error-logs.error.logged' in event_type_full:
+                data = event_data.get('data', {})
+                error_code = data.get('error_code', '')
+                resource_sid = data.get('correlation_sid', '')
+                error_message = data.get('level', 'WARNING')
+                
+                error_emit_data = {
+                    'event_id': event_data.get('id', ''),
+                    'resource_sid': resource_sid,
+                    'timestamp': event_data.get('time') or datetime.now().isoformat(),
+                    'error_code': error_code,
+                    'error_message': error_message,
+                }
+                await sio.emit('new_error', error_emit_data)
+                print(f"Emitted error event to frontend: {error_code}") ## for testing
+            else:
+                # Handle call event 
+                params = {}
+                if 'data' in event_data and 'request' in event_data['data']:
+                    params = event_data['data']['request'].get('parameters', {})
+                elif 'request' in event_data:
+                    params = event_data['request'].get('parameters', {})
+                
+                call_sid = params.get('CallSid')
+                direction = params.get('Direction', '')
+                
+                event_type = None
+                if 'call.initiated' in event_type_full:
+                    event_type = 'initiated'
+                elif 'call.ringing' in event_type_full:
+                    event_type = 'ringing'
+                elif 'call.answer' in event_type_full:
+                    event_type = 'answered'
+                elif 'call.completed' in event_type_full:
+                    event_type = 'completed'
+                
+                call_emit_data = {
+                    'event_id': event_data.get('id', ''),
+                    'call_sid': call_sid,
+                    'timestamp': event_data.get('time') or datetime.now().isoformat(),
+                    'direction': direction,
+                    'event_type': event_type,
+                    'from_number': params.get('From', ''),
+                    'to_number': params.get('To', ''),
+                    'call_status': params.get('CallStatus', ''),
+                }
+                await sio.emit('new_event', call_emit_data)
+                print(f"Emitted event to frontend: {call_emit_data['event_type']}")
             
-            call_sid = params.get('CallSid')
-            direction = params.get('Direction', '')
+            # storing in database
+            success, call = await sync_to_async(store_event_in_database)(event_data)
             
-            event_type = None
-            if 'call.initiated' in event_type_full:
-                event_type = 'initiated'
-            elif 'call.ringing' in event_type_full:
-                event_type = 'ringing'
-            elif 'call.answer' in event_type_full:
-                event_type = 'answered'
-            elif 'call.completed' in event_type_full:
-                event_type = 'completed'
+            if success and call:
+                print(f"Event stored in database successfully")
             
-            call_emit_data = {
-                'event_id': event_data.get('id', ''),
-                'call_sid': call_sid,
-                'timestamp': event_data.get('time') or datetime.now().isoformat(),
-                'direction': direction,
-                'event_type': event_type,
-                'from_number': params.get('From', ''),
-                'to_number': params.get('To', ''),
-                'call_status': params.get('CallStatus', ''),
-            }
-            await sio.emit('new_event', call_emit_data)
-            print(f"Emitted event to frontend: {call_emit_data['event_type']}")
-        
-        # storing in database
-        success, call = await sync_to_async(store_event_in_database)(event_data)
-        
-        if success and call:
-            print(f"Event stored in database successfully")
-        
-        return success
+            return success
     except Exception as e:
         print(f"Error in process_and_emit_event: {e}")
         import traceback

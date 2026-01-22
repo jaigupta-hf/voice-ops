@@ -10,16 +10,25 @@ from .serializers import CallEventSerializer, ErrorEventSerializer
 
 class RecentCallEventsAPIView(APIView):
     """
-    API endpoint to get the 100 most recent call events.
-    Efficiently queries and combines all event types.
+    API endpoint to get call events.
+    Supports 'all' query parameter to fetch all events, otherwise returns 100 most recent.
     """
     
     def get(self, request):
-        # Get all event types, limited and ordered by timestamp
-        initiated = CallInitiatedEvent.objects.select_related('call_sid').order_by('-timestamp')[:100]
-        ringing = CallRingingEvent.objects.select_related('call_sid').order_by('-timestamp')[:100]
-        answered = CallAnsweredEvent.objects.select_related('call_sid').order_by('-timestamp')[:100]
-        completed = CallCompletedEvent.objects.select_related('call_sid').order_by('-timestamp')[:100]
+        # Check if 'all' query parameter is present
+        fetch_all = request.query_params.get('all', 'false').lower() == 'true'
+        
+        # Get all event types, with or without limit based on fetch_all
+        if fetch_all:
+            initiated = CallInitiatedEvent.objects.select_related('call_sid').order_by('-timestamp')
+            ringing = CallRingingEvent.objects.select_related('call_sid').order_by('-timestamp')
+            answered = CallAnsweredEvent.objects.select_related('call_sid').order_by('-timestamp')
+            completed = CallCompletedEvent.objects.select_related('call_sid').order_by('-timestamp')
+        else:
+            initiated = CallInitiatedEvent.objects.select_related('call_sid').order_by('-timestamp')[:100]
+            ringing = CallRingingEvent.objects.select_related('call_sid').order_by('-timestamp')[:100]
+            answered = CallAnsweredEvent.objects.select_related('call_sid').order_by('-timestamp')[:100]
+            completed = CallCompletedEvent.objects.select_related('call_sid').order_by('-timestamp')[:100]
         
         # Combine all events into a unified list
         all_events = []
@@ -72,9 +81,12 @@ class RecentCallEventsAPIView(APIView):
                 'call_status': event.call_sid.call_status,
             })
         
-        # Sort all events by timestamp (most recent first) and limit to 100
+        # Sort all events by timestamp (most recent first)
         all_events.sort(key=lambda x: x['timestamp'], reverse=True)
-        all_events = all_events[:100]
+        
+        # Limit to 100 if not fetching all
+        if not fetch_all:
+            all_events = all_events[:100]
         
         serializer = CallEventSerializer(all_events, many=True)
         return Response(serializer.data)
@@ -82,12 +94,20 @@ class RecentCallEventsAPIView(APIView):
 
 class RecentErrorEventsAPIView(APIView):
     """
-    API endpoint to get the 100 most recent error events.
+    API endpoint to get error events.
+    Supports 'all' query parameter to fetch all events, otherwise returns 100 most recent.
     """
     
     def get(self, request):
-        # Get most recent 100 errors with related call info
-        errors = ErrorEvent.objects.select_related('resource_sid').order_by('-timestamp')[:100]
+        # Check if 'all' query parameter is present
+        fetch_all = request.query_params.get('all', 'false').lower() == 'true'
+        
+        # Get errors with or without limit based on fetch_all
+        if fetch_all:
+            errors = ErrorEvent.objects.select_related('resource_sid').order_by('-timestamp')
+        else:
+            errors = ErrorEvent.objects.select_related('resource_sid').order_by('-timestamp')[:100]
+        
         serializer = ErrorEventSerializer(errors, many=True)
         return Response(serializer.data)
 

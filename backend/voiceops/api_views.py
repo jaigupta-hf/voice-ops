@@ -109,6 +109,7 @@ class CallDetailEventsAPIView(APIView):
         ringing = CallRingingEvent.objects.filter(call_sid=call).order_by('timestamp')
         answered = CallAnsweredEvent.objects.filter(call_sid=call).order_by('timestamp')
         completed = CallCompletedEvent.objects.filter(call_sid=call).order_by('timestamp')
+        errors = ErrorEvent.objects.filter(resource_sid=call).order_by('timestamp')
         
         # Combine all events
         all_events = []
@@ -139,6 +140,15 @@ class CallDetailEventsAPIView(APIView):
                 'event_id': event.event_id,
                 'event_type': 'completed',
                 'timestamp': event.timestamp,
+            })
+        
+        for event in errors:
+            all_events.append({
+                'event_id': event.event_id,
+                'event_type': 'error',
+                'timestamp': event.timestamp,
+                'error_code': event.error_code,
+                'error_message': event.error_message,
             })
         
         # Sort by timestamp

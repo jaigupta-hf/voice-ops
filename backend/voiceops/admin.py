@@ -9,15 +9,15 @@ from .models import (
 
 @admin.register(Call)
 class CallAdmin(admin.ModelAdmin):
-    list_display = ('call_sid', 'direction', 'from_number', 'to_number', 'call_status', 'created_at')
-    search_fields = ('call_sid', 'from_number', 'to_number')
+    list_display = ('call_sid', 'account_sid', 'direction', 'from_number', 'to_number', 'call_status', 'created_at')
+    search_fields = ('call_sid', 'account_sid', 'from_number', 'to_number')
     list_filter = ('direction', 'call_status', 'created_at')
     ordering = ('-created_at',)
-    readonly_fields = ('call_sid', 'direction', 'from_number', 'to_number', 'call_status', 'created_at', 'formatted_additional_data')
+    readonly_fields = ('call_sid', 'account_sid', 'direction', 'from_number', 'to_number', 'call_status', 'created_at', 'formatted_additional_data')
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('call_sid', 'direction', 'from_number', 'to_number', 'call_status', 'created_at')
+            'fields': ('call_sid', 'account_sid', 'direction', 'from_number', 'to_number', 'call_status', 'created_at')
         }),
         ('Additional Data', {
             'fields': ('formatted_additional_data',),

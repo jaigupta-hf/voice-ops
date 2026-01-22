@@ -9,6 +9,7 @@ class Call(models.Model):
     Main table to store call information.
     """
     call_sid = models.CharField(max_length=255, primary_key=True, db_index=True)
+    account_sid = models.CharField(max_length=255, blank=True, default='', db_index=True)
     direction = models.CharField(max_length=50) 
     from_number = models.CharField(max_length=50, blank=True, default='') 
     to_number = models.CharField(max_length=50, blank=True, default='') 

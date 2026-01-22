@@ -15,10 +15,8 @@ class RecentCallEventsAPIView(APIView):
     """
     
     def get(self, request):
-        # Check if 'all' query parameter is present
         fetch_all = request.query_params.get('all', 'false').lower() == 'true'
         
-        # Get all event types, with or without limit based on fetch_all
         if fetch_all:
             initiated = CallInitiatedEvent.objects.select_related('call_sid').order_by('-timestamp')
             ringing = CallRingingEvent.objects.select_related('call_sid').order_by('-timestamp')
@@ -30,7 +28,6 @@ class RecentCallEventsAPIView(APIView):
             answered = CallAnsweredEvent.objects.select_related('call_sid').order_by('-timestamp')[:100]
             completed = CallCompletedEvent.objects.select_related('call_sid').order_by('-timestamp')[:100]
         
-        # Combine all events into a unified list
         all_events = []
         
         for event in initiated:
@@ -84,7 +81,6 @@ class RecentCallEventsAPIView(APIView):
         # Sort all events by timestamp (most recent first)
         all_events.sort(key=lambda x: x['timestamp'], reverse=True)
         
-        # Limit to 100 if not fetching all
         if not fetch_all:
             all_events = all_events[:100]
         
@@ -99,10 +95,8 @@ class RecentErrorEventsAPIView(APIView):
     """
     
     def get(self, request):
-        # Check if 'all' query parameter is present
         fetch_all = request.query_params.get('all', 'false').lower() == 'true'
         
-        # Get errors with or without limit based on fetch_all
         if fetch_all:
             errors = ErrorEvent.objects.select_related('resource_sid').order_by('-timestamp')
         else:
@@ -124,14 +118,12 @@ class CallDetailEventsAPIView(APIView):
         except Call.DoesNotExist:
             return Response({'error': 'Call not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Get all event types for this call
         initiated = CallInitiatedEvent.objects.filter(call_sid=call).order_by('timestamp')
         ringing = CallRingingEvent.objects.filter(call_sid=call).order_by('timestamp')
         answered = CallAnsweredEvent.objects.filter(call_sid=call).order_by('timestamp')
         completed = CallCompletedEvent.objects.filter(call_sid=call).order_by('timestamp')
         errors = ErrorEvent.objects.filter(resource_sid=call).order_by('timestamp')
         
-        # Combine all events
         all_events = []
         
         for event in initiated:
